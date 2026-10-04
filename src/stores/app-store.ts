@@ -81,7 +81,11 @@ export const useAppStore = create<AppState>((set, get) => {
   }
 
   return {
-    currentPage: 'today',
+    currentPage:
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('page') === 'settings'
+        ? 'settings'
+        : 'today',
     selectedDate: todayString(),
     dashboard: null,
     dashboardLoading: false,

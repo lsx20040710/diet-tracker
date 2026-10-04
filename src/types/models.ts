@@ -481,10 +481,49 @@ export interface AppInfo {
   databaseVersion: number;
 }
 
+export interface DataStorageMigrationNotice {
+  status: 'completed' | 'cleanup_pending';
+  sourceDirectory: string;
+  sourceDatabasePath: string;
+  message: string;
+}
+
+export interface DataStorageInfo {
+  directory: string;
+  databasePath: string;
+  defaultDirectory: string;
+  isDefault: boolean;
+  migrationNotice?: DataStorageMigrationNotice | null;
+}
+
+export interface DataStorageSelection {
+  selectionId: string;
+  directory: string;
+  databasePath: string;
+  hasExistingDatabase: boolean;
+  isCurrent: boolean;
+}
+
+export interface DataStorageChangeInput {
+  selectionId: string;
+  mode: 'migrate' | 'existing';
+}
+
+export interface DataStorageChangeResult {
+  changed: boolean;
+  storage: DataStorageInfo;
+  previousDirectory: string | null;
+}
+
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string; code?: string };
 
 export interface DietTrackerApi {
   getAppInfo(): Promise<ApiResult<AppInfo>>;
+  getStorageInfo(): Promise<ApiResult<DataStorageInfo>>;
+  chooseStorageDirectory(): Promise<ApiResult<DataStorageSelection | null>>;
+  changeStorageDirectory(
+    input: DataStorageChangeInput,
+  ): Promise<ApiResult<DataStorageChangeResult>>;
   getDashboard(date: string): Promise<ApiResult<DashboardData>>;
   listBodyRecords(): Promise<ApiResult<BodyRecord[]>>;
   upsertBodyRecord(input: BodyRecordInput): Promise<ApiResult<BodyRecord>>;

@@ -34,6 +34,13 @@ export const dateSchema = z
 
 export const idSchema = z.number().int('ID 必须为整数').positive('ID 必须大于 0');
 
+export const dataStorageChangeInputSchema = z
+  .object({
+    selectionId: z.string().uuid('请重新选择数据目录'),
+    mode: z.enum(['migrate', 'existing']),
+  })
+  .strict();
+
 const optionalText = (maximum: number) => z.string().trim().max(maximum).optional();
 const nullablePositive = (label: string, maximum: number) =>
   z

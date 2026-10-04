@@ -1,10 +1,15 @@
+import { app, BrowserWindow, dialog, screen, type Rectangle } from 'electron';
 import { join } from 'node:path';
 
-import { app, BrowserWindow, dialog, screen, type Rectangle } from 'electron';
-
 import { DatabaseService, type WindowState } from './database';
+import { DataStorageService } from './data-storage';
 import { AppError, normalizeDatabaseError } from './errors';
-import { registerIpcHandlers, removeIpcHandlers } from './ipc';
+import {
+  registerIpcHandlers,
+  removeIpcHandlers,
+  setDataStorageTransition,
+  type DataStorageOperations,
+} from './ipc';
 
 const MINIMUM_WIDTH = 1024;
 const MINIMUM_HEIGHT = 680;
@@ -14,6 +19,105 @@ const DEFAULT_HEIGHT = 820;
 let mainWindow: BrowserWindow | null = null;
 let database: DatabaseService | null = null;
 let databaseFilePath: string | null = null;
+let dataStorage: DataStorageService | null = null;
+let applicationQuitting = false;
+
+const storageOperations: DataStorageOperations = {
+  getInfo: () => requireStorage().getInfo(),
+  chooseDirectory: async (owner) => {
+    const storage = requireStorage();
+    const options: Electron.OpenDialogOptions = {
+      title: '选择用户数据存放目录',
+      defaultPath: storage.getInfo().directory,
+      properties: ['openDirectory', 'createDirectory'],
+      buttonLabel: '选择此目录',
+    };
+    const selection = owner
+      ? await dialog.showOpenDialog(owner, options)
+      : await dialog.showOpenDialog(options);
+    if (applicationQuitting || selection.canceled || !selection.filePaths[0]) return null;
+    return storage.prepareSelection(selection.filePaths[0]);
+  },
+  changeDirectory: (input) => {
+    const storage = requireStorage();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      throw new AppError('WINDOW_UNAVAILABLE', '当前窗口不可用，请重新打开应用。');
+    }
+    setDataStorageTransition(true);
+    try {
+      const result = storage.changeDirectory(input);
+      if (!result.changed) {
+        setDataStorageTransition(false);
+        return result;
+      }
+      database = storage.database;
+      databaseFilePath = result.storage.databasePath;
+      registerIpcHandlers(database, storageOperations);
+      // 新文档提交后再解锁 IPC，旧页面中的表单不能写入切换后的数据库。
+      mainWindow.webContents.once('did-navigate', () => setDataStorageTransition(false));
+      setImmediate(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          const settingsUrl = new URL(mainWindow.webContents.getURL());
+          settingsUrl.searchParams.set('page', 'settings');
+          void mainWindow.webContents.loadURL(settingsUrl.toString()).catch((error: unknown) => {
+            showStartupError(error);
+            app.quit();
+          });
+        }
+      });
+      return result;
+    } catch (error) {
+      setDataStorageTransition(false);
+      throw error;
+    }
+  },
+};
+
+function requireStorage(): DataStorageService {
+  if (applicationQuitting || !dataStorage) {
+    throw new AppError('STORAGE_UNAVAILABLE', '数据存储服务不可用，请重新启动应用。');
+  }
+  return dataStorage;
+}
+
+/** 自选目录不可达时保留原配置，恢复动作只接受用户选中的已有数据库。 */
+async function initializeDataStorage(): Promise<boolean> {
+  dataStorage = new DataStorageService(app.getPath('userData'), app.getVersion());
+  let recoverDirectory: string | null = null;
+  while (!applicationQuitting) {
+    try {
+      database = recoverDirectory
+        ? dataStorage.recoverExisting(recoverDirectory)
+        : dataStorage.initialize();
+      databaseFilePath = dataStorage.getInfo().databasePath;
+      return true;
+    } catch (error) {
+      const safeError = error instanceof AppError ? error : normalizeDatabaseError(error);
+      const result = await dialog.showMessageBox({
+        type: 'error',
+        title: '无法打开用户数据',
+        message: safeError.message,
+        detail:
+          '请确认原数据目录可访问（例如重新连接外置盘）。也可以选择原目录或其他包含 diet-tracker.sqlite3 的目录继续使用；不会创建空数据库或覆盖原数据。',
+        buttons: ['重试', '选择已有数据目录', '退出'],
+        defaultId: 0,
+        cancelId: 2,
+        noLink: true,
+      });
+      if (result.response === 2 || applicationQuitting) return false;
+      if (result.response === 0) continue;
+      const selection = await dialog.showOpenDialog({
+        title: '选择包含 diet-tracker.sqlite3 的已有数据目录',
+        properties: ['openDirectory'],
+        buttonLabel: '使用已有数据',
+      });
+      if (!selection.canceled && selection.filePaths[0]) {
+        recoverDirectory = selection.filePaths[0];
+      }
+    }
+  }
+  return false;
+}
 
 function isStateVisible(state: WindowState): boolean {
   if (state.x === undefined || state.y === undefined) {
@@ -122,12 +226,13 @@ if (!hasSingleInstanceLock) {
     mainWindow.focus();
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     try {
-      databaseFilePath = join(app.getPath('userData'), 'diet-tracker.sqlite3');
-      database = new DatabaseService(databaseFilePath, app.getVersion());
-      database.initialize();
-      registerIpcHandlers(database);
+      if (!(await initializeDataStorage()) || !database) {
+        app.quit();
+        return;
+      }
+      registerIpcHandlers(database, storageOperations);
       mainWindow = createMainWindow();
     } catch (error) {
       console.error('应用初始化失败：', error);
@@ -149,6 +254,7 @@ if (!hasSingleInstanceLock) {
   });
 
   app.on('before-quit', () => {
+    applicationQuitting = true;
     if (database && mainWindow && !mainWindow.isDestroyed()) {
       const bounds = mainWindow.getNormalBounds();
       try {
@@ -158,7 +264,8 @@ if (!hasSingleInstanceLock) {
       }
     }
     removeIpcHandlers();
-    database?.close();
+    dataStorage?.close();
+    dataStorage = null;
     database = null;
   });
 }

@@ -1,6 +1,9 @@
 /** IPC 通道集中声明，preload 只能访问此白名单。 */
 export const IPC_CHANNELS = {
   getAppInfo: 'app:get-info',
+  getStorageInfo: 'storage:get-info',
+  chooseStorageDirectory: 'storage:choose-directory',
+  changeStorageDirectory: 'storage:change-directory',
   getDashboard: 'dashboard:get',
   listBodyRecords: 'body:list',
   upsertBodyRecord: 'body:upsert',

@@ -35,7 +35,7 @@ const navigationItems: NavigationItem[] = [
     icon: DatabaseBackup,
     enabled: true,
   },
-  { id: 'settings', label: '设置', icon: Settings, enabled: false, phase: '后续阶段' },
+  { id: 'settings', label: '设置', icon: Settings, enabled: true },
 ];
 
 export function Sidebar() {

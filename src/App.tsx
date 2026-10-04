@@ -15,6 +15,7 @@ import { BodyDataPage } from './pages/BodyDataPage';
 import { DietPlansPage } from './pages/DietPlansPage';
 import { FoodsPage } from './pages/FoodsPage';
 import { HistoryPage } from './pages/HistoryPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { SupplementsPage } from './pages/SupplementsPage';
 import { TodayPage } from './pages/TodayPage';
 import { TransferPage } from './pages/TransferPage';
@@ -194,6 +195,9 @@ export default function App() {
       break;
     case 'transfer':
       page = <TransferPage />;
+      break;
+    case 'settings':
+      page = <SettingsPage />;
       break;
     case 'today':
     default:

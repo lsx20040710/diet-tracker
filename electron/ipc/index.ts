@@ -1,7 +1,13 @@
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { ZodError, type ZodType } from 'zod';
 
-import type { ApiResult } from '../../src/types/models';
+import type {
+  ApiResult,
+  DataStorageChangeInput,
+  DataStorageChangeResult,
+  DataStorageInfo,
+  DataStorageSelection,
+} from '../../src/types/models';
 import type { DatabaseService } from '../database';
 import { AppError, normalizeDatabaseError } from '../errors';
 import { FileOperationService } from '../file-operation-service';
@@ -13,6 +19,7 @@ import {
   chartImageExportInputSchema,
   clearMealSchema,
   copyMealsInputSchema,
+  dataStorageChangeInputSchema,
   dateSchema,
   dateRangeQuerySchema,
   dietPlanInputSchema,
@@ -36,6 +43,24 @@ import {
   updateFoodCombinationPayloadSchema,
   updateFoodPayloadSchema,
 } from './schemas';
+
+export interface DataStorageOperations {
+  getInfo(): DataStorageInfo;
+  chooseDirectory(owner: BrowserWindow | null): Promise<DataStorageSelection | null>;
+  changeDirectory(input: DataStorageChangeInput): DataStorageChangeResult;
+}
+
+// 文件对话框与异步读取也占用当前库；重新注册处理器时不能丢失这个计数。
+let activeFileOperations = 0;
+let dataStorageTransition = false;
+
+export function setDataStorageTransition(active: boolean): void {
+  dataStorageTransition = active;
+}
+
+function transitionError(): ApiResult<never> {
+  return { ok: false, code: 'STORAGE_CHANGING', error: '正在切换数据目录，请等待页面重新载入。' };
+}
 
 function parse<T>(schema: ZodType<T>, value: unknown): T {
   return schema.parse(value);
@@ -82,7 +107,9 @@ async function toApiResultAsync<T>(operation: () => Promise<T>): Promise<ApiResu
 
 function register(channel: string, handler: (...args: unknown[]) => unknown): void {
   ipcMain.removeHandler(channel);
-  ipcMain.handle(channel, (_event, ...args: unknown[]) => handler(...args));
+  ipcMain.handle(channel, (_event, ...args: unknown[]) =>
+    dataStorageTransition ? transitionError() : handler(...args),
+  );
 }
 
 function registerAsync(
@@ -90,12 +117,40 @@ function registerAsync(
   handler: (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>,
 ): void {
   ipcMain.removeHandler(channel);
-  ipcMain.handle(channel, handler);
+  ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+    if (dataStorageTransition) return transitionError();
+    activeFileOperations += 1;
+    try {
+      return await handler(event, ...args);
+    } finally {
+      activeFileOperations -= 1;
+    }
+  });
 }
 
 /** 注册渲染进程可调用的最小 IPC 白名单。 */
-export function registerIpcHandlers(database: DatabaseService): void {
+export function registerIpcHandlers(
+  database: DatabaseService,
+  storage?: DataStorageOperations,
+): void {
   const fileOperations = new FileOperationService(database);
+  if (storage) {
+    register(IPC_CHANNELS.getStorageInfo, () => toApiResult(() => storage.getInfo()));
+    registerAsync(IPC_CHANNELS.chooseStorageDirectory, (event) =>
+      toApiResultAsync(() => storage.chooseDirectory(BrowserWindow.fromWebContents(event.sender))),
+    );
+    register(IPC_CHANNELS.changeStorageDirectory, (input) =>
+      toApiResult(() => {
+        if (activeFileOperations > 0) {
+          throw new AppError(
+            'STORAGE_BUSY',
+            '请先完成或取消正在进行的导入、导出和文件选择，再更改数据目录。',
+          );
+        }
+        return storage.changeDirectory(parse(dataStorageChangeInputSchema, input));
+      }),
+    );
+  }
   register(IPC_CHANNELS.getAppInfo, () => toApiResult(() => database.getAppInfo()));
   register(IPC_CHANNELS.getDashboard, (date) =>
     toApiResult(() => database.getDashboard(parse(dateSchema, date))),

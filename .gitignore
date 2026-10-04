@@ -29,6 +29,8 @@ coverage/
 exports/
 backups/
 userData/
+data-storage.json
+data-storage.json.*
 .codex/
 .agents/
 .aws/

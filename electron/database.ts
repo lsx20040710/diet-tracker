@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -1556,6 +1556,109 @@ export class DatabaseService {
     }
     this.database.close();
     this.database = null;
+  }
+
+  /** 创建包含已提交 WAL 内容的一致快照，SQLite 不会覆写已有非空文件。 */
+  exportSnapshot(destination: string): void {
+    this.connection.prepare('VACUUM INTO ?').run(destination);
+    DatabaseService.validateExistingDatabase(destination);
+  }
+
+  getDataVersion(): number {
+    const row = this.connection.prepare('PRAGMA data_version').get() as SqlRow;
+    return Number(row.data_version);
+  }
+
+  /** 迁移前明确落盘 WAL；其他连接阻止检查点时拒绝进入删源阶段。 */
+  checkpointForMigration(): void {
+    const row = this.connection.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get() as SqlRow;
+    if (Number(row.busy) !== 0 || Number(row.log) !== Number(row.checkpointed)) {
+      throw new AppError(
+        'STORAGE_DATABASE_BUSY',
+        '数据库仍被其他连接使用，请关闭相关程序后重试迁移。',
+      );
+    }
+    this.assertDatabaseIntegrity();
+  }
+
+  /** 清理旧库期间阻止其他 SQLite 连接改写已经验证的新库。 */
+  withMigrationCleanupLock<T>(operation: () => T): T {
+    return this.withTransaction(operation);
+  }
+
+  static createExistingSnapshot(databasePath: string, destination: string): void {
+    DatabaseService.validateExistingDatabase(databasePath);
+    const database = new DatabaseSync(databasePath, { readOnly: true, timeout: 5000 });
+    try {
+      database.prepare('VACUUM INTO ?').run(destination);
+    } finally {
+      database.close();
+    }
+    DatabaseService.validateExistingDatabase(destination);
+  }
+
+  /** 在任何可写初始化之前确认所选文件属于本程序，避免改动无关 SQLite 文件。 */
+  static validateExistingDatabase(databasePath: string): void {
+    if (!statSync(databasePath).isFile()) {
+      throw new AppError('STORAGE_DATABASE_INVALID', '所选目录中的数据库路径不是文件。');
+    }
+    let database: DatabaseSync | undefined;
+    try {
+      database = new DatabaseSync(databasePath, { readOnly: true, timeout: 5000 });
+      const integrityRows = database.prepare('PRAGMA quick_check').all() as SqlRow[];
+      if (integrityRows.length !== 1 || String(Object.values(integrityRows[0])[0]) !== 'ok') {
+        throw new AppError('DATABASE_CORRUPTED', '所选数据库完整性检查失败，原文件未被修改。');
+      }
+      const tables = new Set(
+        (
+          database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as SqlRow[]
+        ).map((row) => String(row.name)),
+      );
+      if (
+        ![
+          'schema_migrations',
+          'foods',
+          'meal_records',
+          'body_records',
+          'diet_plans',
+          'app_settings',
+        ].every((table) => tables.has(table))
+      ) {
+        throw new AppError(
+          'STORAGE_DATABASE_INVALID',
+          '所选文件不是本程序的有效数据库，原文件未被修改。',
+        );
+      }
+      const versions = database
+        .prepare('SELECT version FROM schema_migrations ORDER BY version')
+        .all() as SqlRow[];
+      const version = Number(versions.at(-1)?.version ?? 0);
+      const userVersion = Number(
+        (database.prepare('PRAGMA user_version').get() as SqlRow).user_version,
+      );
+      if (
+        version < 1 ||
+        version > DATABASE_SCHEMA_VERSION ||
+        version !== userVersion ||
+        versions.some((row, index) => Number(row.version) !== index + 1)
+      ) {
+        throw new AppError(
+          'DATABASE_VERSION_UNSUPPORTED',
+          '所选数据库版本不受当前程序支持，原文件未被修改。',
+        );
+      }
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError(
+        'STORAGE_DATABASE_INVALID',
+        '无法读取所选数据库，请检查文件是否有效及目录权限。原文件未被修改。',
+        { cause: error },
+      );
+    } finally {
+      database?.close();
+    }
   }
 
   getAppInfo(): AppInfo {

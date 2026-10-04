@@ -1,6 +1,6 @@
 {
   "name": "diet-tracker",
-  "version": "0.7.1",
+  "version": "0.7.3",
   "description": "完全本地运行的饮食、体重和身体数据管理桌面应用",
   "private": true,
   "type": "module",
