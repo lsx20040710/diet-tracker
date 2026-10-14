@@ -363,6 +363,7 @@ export function FoodForm({
         ) : null}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <EnergyInput
+            initialUnit={!initialFood && !supplementMode ? 'kJ' : 'kcal'}
             label="热量"
             onValueKcalChange={(value) => update('caloriesPer100g', value)}
             required

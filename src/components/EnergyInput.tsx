@@ -6,6 +6,7 @@ interface EnergyInputProps {
   valueKcal: string;
   onValueKcalChange: (valueKcal: string) => void;
   label: string;
+  initialUnit?: EnergyUnit;
   disabled?: boolean;
   required?: boolean;
   hint?: string;
@@ -37,13 +38,14 @@ export function EnergyInput({
   valueKcal,
   onValueKcalChange,
   label,
+  initialUnit = 'kcal',
   disabled = false,
   required = false,
   hint,
 }: EnergyInputProps) {
   const inputId = useId();
-  const [unit, setUnit] = useState<EnergyUnit>('kcal');
-  const [displayValue, setDisplayValue] = useState(() => getDisplayValue(valueKcal, 'kcal'));
+  const [unit, setUnit] = useState<EnergyUnit>(initialUnit);
+  const [displayValue, setDisplayValue] = useState(() => getDisplayValue(valueKcal, initialUnit));
   const canonicalKcalRef = useRef(valueKcal);
   const lastEmittedKcalRef = useRef<string | null>(null);
 

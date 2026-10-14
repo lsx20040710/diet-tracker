@@ -2,7 +2,7 @@
 
 一个在 Windows 本地运行的饮食、补剂与身体数据管理工具。记录四餐、查看营养摄入、跟踪体重变化，并按自己的训练日或休息日设置目标。
 
-**当前版本：0.7.3 · Windows x64 · 无需账号 · 可离线使用**
+**当前版本：0.7.4 · Windows x64 · 无需账号 · 可离线使用**
 
 [下载最新版本](https://github.com/lsx20040710/diet-tracker/releases/latest) · [详细使用指南](docs/USER_GUIDE.md) · [更新日志](CHANGELOG.md)
 
@@ -102,6 +102,8 @@ pnpm dev
 也可使用 npm 执行对应脚本；如需复现锁定的依赖版本，请使用 pnpm。PowerShell 限制 npm 脚本执行时，可使用 `npm.cmd`。
 
 渲染页面通过 preload 白名单 API 访问主进程，开启上下文隔离和渲染进程沙箱，关闭 Node.js 集成；主进程使用 Zod 校验输入，并通过参数绑定与事务访问数据库。测试使用独立的临时数据库。
+
+发布时，更新 `package.json` 版本和更新日志，再推送对应的 `v` 前缀版本标签（例如 `v0.7.4`）。GitHub Actions 会检查版本、运行测试与代码检查，并在 Windows 上构建安装版和便携版，连同 `SHA256SUMS.txt` 上传到对应 Release。
 
 ## 当前限制与后续计划
 

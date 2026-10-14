@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Validate release version
+        shell: pwsh
+        run: |
+          $releaseVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne "v$releaseVersion") {
+            throw "The release tag must match package.json version $releaseVersion"
+          }
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm test
+
+      - run: pnpm lint
+
+      - run: pnpm format:check
+
+      - run: pnpm dist --publish never
+
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          $checksums = @('DietTracker-Setup.exe', 'DietTracker-Portable.exe') | ForEach-Object {
+            $artifactHash = (Get-FileHash "release/$_" -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$artifactHash  $_"
+          }
+          $checksums | Set-Content release/SHA256SUMS.txt -Encoding utf8
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $releaseVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $releaseNotes = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          $changelog = Get-Content CHANGELOG.md -Raw
+          $releaseSection = [regex]::Match($changelog, "(?ms)^## $([regex]::Escape($releaseVersion)) [^\r\n]+\r?\n\r?\n(?<notes>.*?)(?=^## |\z)")
+          if (-not $releaseSection.Success) {
+            throw "Missing changelog for version $releaseVersion"
+          }
+          $releaseSection.Groups['notes'].Value.Trim() | Set-Content $releaseNotes -Encoding utf8
+          gh release create $env:GITHUB_REF_NAME release/DietTracker-Setup.exe release/DietTracker-Portable.exe release/SHA256SUMS.txt --title "饮食与体重记录助手 v$releaseVersion" --notes-file $releaseNotes --verify-tag --latest
