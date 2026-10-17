@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Copy,
   Database,
+  Flame,
   FolderOpen,
   LoaderCircle,
   RefreshCw,
@@ -10,21 +11,38 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { primaryButtonClass, secondaryButtonClass, TextInput } from '../components/ui/FormControls';
+import {
+  Field,
+  primaryButtonClass,
+  secondaryButtonClass,
+  SelectInput,
+  TextInput,
+} from '../components/ui/FormControls';
 import { Modal } from '../components/ui/Modal';
 import { getDietTrackerApi, getErrorMessage, unwrapApiResult } from '../services/api';
-import type { DataStorageInfo, DataStorageSelection } from '../types/models';
+import { useSettingsStore } from '../stores/settings-store';
+import type { DataStorageInfo, DataStorageSelection, EnergyUnit } from '../types/models';
 
 type Feedback = { type: 'success' | 'error' | 'info'; message: string };
 type StorageOperation = 'loading' | 'choosing' | 'changing' | null;
 
 export function SettingsPage() {
+  const settings = useSettingsStore((state) => state.settings);
+  const settingsLoading = useSettingsStore((state) => state.loading);
+  const settingsSaving = useSettingsStore((state) => state.saving);
+  const settingsError = useSettingsStore((state) => state.errorMessage);
+  const loadSettings = useSettingsStore((state) => state.loadSettings);
+  const saveSettings = useSettingsStore((state) => state.saveSettings);
   const [storage, setStorage] = useState<DataStorageInfo | null>(null);
   const [selection, setSelection] = useState<DataStorageSelection | null>(null);
   const [existingConfirmed, setExistingConfirmed] = useState(false);
   const [operation, setOperation] = useState<StorageOperation>('loading');
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const operationLockRef = useRef(false);
+
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
 
   useEffect(() => {
     let active = true;
@@ -150,9 +168,55 @@ export function SettingsPage() {
         <header>
           <h1 className="text-2xl font-semibold text-slate-950">设置</h1>
           <p className="mt-1 text-sm text-slate-500">
-            选择用户数据的存放位置，按自己的习惯管理本地记录。
+            设置默认热量单位与用户数据存放位置，按自己的习惯管理本地记录。
           </p>
         </header>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Flame className="size-5 text-emerald-600" />
+            <h2 className="text-lg font-semibold text-slate-900">热量输入</h2>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            食物、补剂、饮食方案和日型的热量输入框默认使用所选单位，也可在输入时临时切换。
+          </p>
+          <div className="mt-4 max-w-sm">
+            <Field label="默认热量单位" hint="选择后自动保存，重启应用后继续使用。">
+              <SelectInput
+                disabled={busy || settingsLoading || settingsSaving || !settings}
+                onChange={(event) =>
+                  void saveSettings({ defaultEnergyUnit: event.target.value as EnergyUnit })
+                }
+                value={settings?.defaultEnergyUnit ?? ''}
+              >
+                {!settings ? <option value="">正在读取设置…</option> : null}
+                <option value="kJ">千焦 (kJ)</option>
+                <option value="kcal">千卡 (kcal)</option>
+              </SelectInput>
+            </Field>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-slate-500">
+            此设置仅影响输入单位；营养统计、历史记录和导入导出仍使用 kcal。
+          </p>
+          {settingsSaving ? (
+            <p className="mt-3 text-sm text-slate-500" role="status">
+              正在保存热量单位…
+            </p>
+          ) : null}
+          {settingsError ? (
+            <div className="mt-3 flex items-center gap-3 text-sm text-red-700" role="alert">
+              <span>{settingsError}</span>
+              <button
+                className={secondaryButtonClass}
+                disabled={busy || settingsLoading || settingsSaving}
+                onClick={() => void loadSettings()}
+                type="button"
+              >
+                重新读取
+              </button>
+            </div>
+          ) : null}
+        </section>
 
         {feedback && !selection ? (
           <div

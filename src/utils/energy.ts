@@ -1,6 +1,8 @@
-export const KILOJOULES_PER_KILOCALORIE = 4.184;
+import type { EnergyUnit } from '../types/models';
 
-export type EnergyUnit = 'kcal' | 'kJ';
+export type { EnergyUnit } from '../types/models';
+
+export const KILOJOULES_PER_KILOCALORIE = 4.184;
 
 function assertFiniteEnergy(value: number): void {
   if (!Number.isFinite(value)) {

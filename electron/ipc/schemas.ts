@@ -6,6 +6,7 @@ import {
   CORE_MEAL_TYPES,
   DIET_PLAN_CALCULATION_MODES,
   DIET_PLAN_WEIGHT_SOURCE_MODES,
+  ENERGY_UNITS,
   EXPORT_DATA_KINDS,
   FOOD_CATEGORIES,
   FOOD_KINDS,
@@ -33,6 +34,12 @@ export const dateSchema = z
   .refine(isRealDate, '日期无效');
 
 export const idSchema = z.number().int('ID 必须为整数').positive('ID 必须大于 0');
+
+export const appSettingsSchema = z
+  .object({
+    defaultEnergyUnit: z.enum(ENERGY_UNITS, { error: '默认热量单位必须是 kcal 或 kJ' }),
+  })
+  .strict();
 
 export const dataStorageChangeInputSchema = z
   .object({

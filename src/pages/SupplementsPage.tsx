@@ -5,6 +5,7 @@ import { FoodForm } from '../components/FoodForm';
 import { primaryButtonClass } from '../components/ui/FormControls';
 import { Modal } from '../components/ui/Modal';
 import { getDietTrackerApi, getErrorMessage, unwrapApiResult } from '../services/api';
+import { confirmAction } from '../stores/confirmation-store';
 import { useAppStore } from '../stores/app-store';
 import type { Food, FoodInput } from '../types/models';
 import { formatNutrition } from '../utils/nutrition';
@@ -88,7 +89,7 @@ export function SupplementsPage() {
   async function handleArchive(supplement: Food) {
     if (archivePendingRef.current) return;
     archivePendingRef.current = true;
-    const confirmed = window.confirm(
+    const confirmed = await confirmAction(
       `确定从补剂库删除“${supplement.name}”吗？删除后不会再出现在补剂库和添加记录搜索中，历史记录仍保留原有营养快照。`,
     );
     if (!confirmed) {

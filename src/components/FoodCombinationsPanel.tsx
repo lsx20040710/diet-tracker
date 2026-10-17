@@ -2,6 +2,7 @@ import { CheckCircle2, Pencil, Plus, Trash2, Utensils } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getDietTrackerApi, getErrorMessage, unwrapApiResult } from '../services/api';
+import { confirmAction } from '../stores/confirmation-store';
 import { useAppStore } from '../stores/app-store';
 import type { FoodCombination, FoodCombinationInput, MealType } from '../types/models';
 import { formatMealAmount } from '../utils/meal-amount';
@@ -69,7 +70,7 @@ export function FoodCombinationsPanel() {
   async function handleDelete(combination: FoodCombination) {
     if (deletePending.current) return;
     deletePending.current = true;
-    if (!window.confirm(`确定删除常用组合“${combination.name}”吗？`)) {
+    if (!(await confirmAction(`确定删除常用组合“${combination.name}”吗？`))) {
       deletePending.current = false;
       return;
     }

@@ -2,6 +2,7 @@ import { Copy, GripVertical, PartyPopper, Pencil, Plus, Sparkles, Trash2 } from 
 import { useMemo, useRef, useState } from 'react';
 
 import { getErrorMessage } from '../services/api';
+import { confirmAction } from '../stores/confirmation-store';
 import { useAppStore } from '../stores/app-store';
 import {
   CORE_MEAL_TYPES,
@@ -64,7 +65,7 @@ export function MealSection({
 
   async function handleDelete(record: MealRecord) {
     if (pendingRef.current) return;
-    if (!window.confirm(`确定删除“${record.foodNameSnapshot}”这条记录吗？`)) return;
+    if (!(await confirmAction(`确定删除“${record.foodNameSnapshot}”这条记录吗？`))) return;
     pendingRef.current = true;
     setPending(true);
     setError(null);
@@ -81,7 +82,9 @@ export function MealSection({
   async function handleClear() {
     if (pendingRef.current) return;
     if (records.length === 0) return;
-    if (!window.confirm(`确定清空${mealLabels[mealType]}的全部 ${records.length} 条记录吗？`))
+    if (
+      !(await confirmAction(`确定清空${mealLabels[mealType]}的全部 ${records.length} 条记录吗？`))
+    )
       return;
     pendingRef.current = true;
     setPending(true);
@@ -101,9 +104,9 @@ export function MealSection({
     if (
       !isIndulgence &&
       records.length > 0 &&
-      !window.confirm(
+      !(await confirmAction(
         `设为放纵餐后会清除${mealLabels[mealType]}现有的 ${records.length} 条食物记录，并按本餐目标直接记满。是否继续？`,
-      )
+      ))
     ) {
       return;
     }

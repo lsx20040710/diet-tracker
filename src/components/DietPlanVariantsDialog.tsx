@@ -2,6 +2,7 @@ import { Copy, Pencil, Plus, Tag, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { getDietTrackerApi, getErrorMessage, unwrapApiResult } from '../services/api';
+import { confirmAction } from '../stores/confirmation-store';
 import { useAppStore } from '../stores/app-store';
 import type {
   BodyRecord,
@@ -415,7 +416,7 @@ export function DietPlanVariantsDialog({
   async function deleteVariant(variant: DietPlanVariant): Promise<void> {
     if (
       pendingRef.current ||
-      !window.confirm(`确定删除日型“${variant.name}”吗？历史日期仍会保留当时的名称和目标。`)
+      !(await confirmAction(`确定删除日型“${variant.name}”吗？历史日期仍会保留当时的名称和目标。`))
     ) {
       return;
     }

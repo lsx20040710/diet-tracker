@@ -32,6 +32,65 @@ describe('本地数据库', () => {
     });
   });
 
+  it('默认热量单位使用 kJ，修改后重启数据库仍保留选择', () => {
+    expect(service.getAppSettings()).toEqual({ defaultEnergyUnit: 'kJ' });
+    expect(service.saveAppSettings({ defaultEnergyUnit: 'kcal' })).toEqual({
+      defaultEnergyUnit: 'kcal',
+    });
+
+    service.close();
+    service = new DatabaseService(databasePath, '0.1.0-test');
+    service.initialize();
+    expect(service.getAppSettings()).toEqual({ defaultEnergyUnit: 'kcal' });
+    expect(service.saveAppSettings({ defaultEnergyUnit: 'kJ' })).toEqual({
+      defaultEnergyUnit: 'kJ',
+    });
+  });
+
+  it('修改热量单位不改变营养数据、历史快照或窗口设置，数据库快照包含单位选择', () => {
+    const food = service.listFoods({ kind: 'food' })[0];
+    service.createMealRecord({
+      recordDate: '2026-10-17',
+      mealType: 'lunch',
+      foodId: food.id,
+      amount: 100,
+      unitType: 'gram',
+    });
+    const foods = service.listFoods();
+    const dashboard = service.getDashboard('2026-10-17');
+    const windowState = { width: 1280, height: 800, isMaximized: false };
+    service.saveWindowState(windowState);
+
+    service.saveAppSettings({ defaultEnergyUnit: 'kcal' });
+    expect(service.listFoods()).toEqual(foods);
+    expect(service.getDashboard('2026-10-17')).toEqual(dashboard);
+    expect(service.getWindowState()).toMatchObject(windowState);
+
+    const snapshotPath = join(temporaryDirectory, 'settings-snapshot.db');
+    service.exportSnapshot(snapshotPath);
+    const snapshot = new DatabaseService(snapshotPath, '0.1.0-test');
+    try {
+      snapshot.initialize();
+      expect(snapshot.getAppSettings()).toEqual({ defaultEnergyUnit: 'kcal' });
+    } finally {
+      snapshot.close();
+    }
+  });
+
+  it('无效的已存热量单位回退到 kJ，并可重新保存有效选择', () => {
+    const inspectionDatabase = new DatabaseSync(databasePath);
+    try {
+      inspectionDatabase
+        .prepare('INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)')
+        .run('default_energy_unit', 'invalid', '2026-10-17');
+    } finally {
+      inspectionDatabase.close();
+    }
+    expect(service.getAppSettings()).toEqual({ defaultEnergyUnit: 'kJ' });
+    service.saveAppSettings({ defaultEnergyUnit: 'kcal' });
+    expect(service.getAppSettings()).toEqual({ defaultEnergyUnit: 'kcal' });
+  });
+
   it('首次启动执行全部 migration，重复初始化不会重复写入种子数据', () => {
     const initialFoodCount = service.listFoods({ includeArchived: true, limit: 500 }).length;
     const initialPlanCount = service.listDietPlans().length;

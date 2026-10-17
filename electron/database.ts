@@ -6,13 +6,16 @@ import { pinyin } from 'pinyin-pro';
 
 import {
   CORE_MEAL_TYPES,
+  DEFAULT_APP_SETTINGS,
   DEFAULT_MEAL_RATIOS,
   DIET_PLAN_WEIGHT_SOURCE_MODES,
+  ENERGY_UNITS,
   GOAL_TYPES,
   SUPPLEMENT_FREQUENCIES,
   SUPPLEMENT_WEEKDAYS,
   type AddCombinationToMealInput,
   type AppInfo,
+  type AppSettings,
   type BodyRecord,
   type BodyRecordInput,
   type CopyMealsInput,
@@ -3153,6 +3156,36 @@ export class DatabaseService {
         )
         .all(...parameters) as SqlRow[]
     ).map(mapMealRecord);
+  }
+
+  getAppSettings(): AppSettings {
+    const row = this.connection
+      .prepare("SELECT value FROM app_settings WHERE key = 'default_energy_unit'")
+      .get() as SqlRow | undefined;
+    return {
+      defaultEnergyUnit:
+        row?.value === 'kcal' || row?.value === 'kJ'
+          ? row.value
+          : DEFAULT_APP_SETTINGS.defaultEnergyUnit,
+    };
+  }
+
+  saveAppSettings(settings: AppSettings): AppSettings {
+    if (!ENERGY_UNITS.includes(settings.defaultEnergyUnit)) {
+      throw new AppError('VALIDATION_ERROR', '默认热量单位必须是 kcal 或 kJ。');
+    }
+    this.connection
+      .prepare(
+        `
+        INSERT INTO app_settings (key, value, updated_at)
+        VALUES ('default_energy_unit', ?, ${ISO_TIMESTAMP_SQL})
+        ON CONFLICT(key) DO UPDATE SET
+          value = excluded.value,
+          updated_at = ${ISO_TIMESTAMP_SQL}
+      `,
+      )
+      .run(settings.defaultEnergyUnit);
+    return this.getAppSettings();
   }
 
   getWindowState(): WindowState | null {

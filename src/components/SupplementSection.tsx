@@ -2,6 +2,7 @@ import { CheckCircle2, GripVertical, Pencil, Pill, Plus, Trash2 } from 'lucide-r
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { getErrorMessage } from '../services/api';
+import { confirmAction } from '../stores/confirmation-store';
 import { useAppStore } from '../stores/app-store';
 import type { Food, MealRecord } from '../types/models';
 import { formatMealAmount } from '../utils/meal-amount';
@@ -124,7 +125,7 @@ export function SupplementSection({
 
   async function handleDelete(record: MealRecord) {
     if (pendingRef.current) return;
-    if (!window.confirm(`确定删除“${record.foodNameSnapshot}”这条补剂记录吗？`)) return;
+    if (!(await confirmAction(`确定删除“${record.foodNameSnapshot}”这条补剂记录吗？`))) return;
     pendingRef.current = true;
     setPending(true);
     setError(null);
@@ -149,7 +150,7 @@ export function SupplementSection({
 
   async function handleClear() {
     if (pendingRef.current || records.length === 0) return;
-    if (!window.confirm(`确定清空当天的全部 ${records.length} 条补剂记录吗？`)) return;
+    if (!(await confirmAction(`确定清空当天的全部 ${records.length} 条补剂记录吗？`))) return;
     const recordDate = selectedDate;
     pendingRef.current = true;
     setPending(true);

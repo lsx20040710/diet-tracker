@@ -9,6 +9,7 @@ import {
 } from '../components/ui/FormControls';
 import { Modal } from '../components/ui/Modal';
 import { getDietTrackerApi, getErrorMessage, unwrapApiResult } from '../services/api';
+import { confirmAction } from '../stores/confirmation-store';
 import { useAppStore } from '../stores/app-store';
 import type { BodyRecord, BodyRecordInput } from '../types/models';
 import { formatChineseDate, todayString } from '../utils/date';
@@ -76,7 +77,7 @@ function BodyRecordForm({ state, existingRecords, onCancel, onSubmit }: BodyReco
         record.recordDate === recordDate &&
         (state.mode !== 'edit' || record.id !== state.record.id),
     );
-    if (duplicate && !window.confirm('该日期已有记录，是否覆盖？')) return;
+    if (duplicate && !(await confirmAction('该日期已有记录，是否覆盖？'))) return;
 
     setSubmitting(true);
     setError(null);
@@ -222,7 +223,7 @@ export function BodyDataPage() {
   }
 
   async function deleteRecord(record: BodyRecord) {
-    if (!window.confirm(`确定删除 ${record.recordDate} 的身体数据吗？`)) return;
+    if (!(await confirmAction(`确定删除 ${record.recordDate} 的身体数据吗？`))) return;
     setError(null);
     beginSaving();
     try {

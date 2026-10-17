@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ModalProps {
@@ -14,24 +14,30 @@ interface ModalProps {
 }
 
 /** 提供统一的桌面弹窗焦点区域，并允许使用 Esc 快速关闭。 */
-export function Modal({
+export function Modal({ open, ...props }: ModalProps) {
+  return open ? <OpenModal {...props} /> : null;
+}
+
+function OpenModal({
   title,
   description,
-  open,
   onClose,
   closeDisabled = false,
   children,
   widthClassName = 'max-w-2xl',
-}: ModalProps) {
+}: Omit<ModalProps, 'open'>) {
   const dialogRef = useRef<HTMLElement>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const [previousFocus] = useState(() =>
+    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  );
+  const closeFromKeyboard = useEffectEvent(() => {
+    if (!closeDisabled) onClose();
+  });
 
   useEffect(() => {
-    if (!open) return;
     const dialog = dialogRef.current;
-    const previousFocus =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const focusableSelector = [
       'button:not([disabled])',
       'input:not([disabled])',
@@ -61,7 +67,7 @@ export function Modal({
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
-        if (!closeDisabled) onClose();
+        closeFromKeyboard();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -89,9 +95,7 @@ export function Modal({
       window.removeEventListener('keydown', handleKeyDown);
       if (previousFocus?.isConnected) previousFocus.focus();
     };
-  }, [closeDisabled, onClose, open]);
-
-  if (!open) return null;
+  }, [previousFocus]);
 
   return createPortal(
     <div

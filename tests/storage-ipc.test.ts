@@ -81,6 +81,8 @@ function invoke(channel: string, ...args: unknown[]): unknown {
 function fakeDatabase(version = 'old') {
   const service = {
     getAppInfo: vi.fn(() => ({ version, databasePath: `${version}.sqlite3`, databaseVersion: 10 })),
+    getAppSettings: vi.fn(() => ({ defaultEnergyUnit: 'kJ' })),
+    saveAppSettings: vi.fn((settings: { defaultEnergyUnit: 'kcal' | 'kJ' }) => settings),
     listBodyRecords: vi.fn(() => []),
     deleteBodyRecord: vi.fn(),
   };
@@ -121,6 +123,39 @@ describe('数据目录切换的 IPC 屏障', () => {
     removeIpcHandlers();
     setDataStorageTransition(false);
     vi.restoreAllMocks();
+  });
+
+  it('通过白名单读取并保存默认热量单位', () => {
+    const { database, service } = fakeDatabase();
+    registerIpcHandlers(database, storage);
+    expect(invoke(IPC_CHANNELS.getAppSettings)).toEqual({
+      ok: true,
+      data: { defaultEnergyUnit: 'kJ' },
+    });
+    expect(invoke(IPC_CHANNELS.saveAppSettings, { defaultEnergyUnit: 'kcal' })).toEqual({
+      ok: true,
+      data: { defaultEnergyUnit: 'kcal' },
+    });
+    expect(service.saveAppSettings).toHaveBeenCalledExactlyOnceWith({
+      defaultEnergyUnit: 'kcal',
+    });
+  });
+
+  it.each([
+    undefined,
+    null,
+    {},
+    { defaultEnergyUnit: 'cal' },
+    { defaultEnergyUnit: 0 },
+    { defaultEnergyUnit: 'kJ', arbitraryKey: 'value' },
+  ])('非法热量单位参数不可到达数据库：%j', (input) => {
+    const { database, service } = fakeDatabase();
+    registerIpcHandlers(database, storage);
+    expect(invoke(IPC_CHANNELS.saveAppSettings, input)).toMatchObject({
+      ok: false,
+      code: 'VALIDATION_ERROR',
+    });
+    expect(service.saveAppSettings).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -208,6 +243,8 @@ describe('数据目录切换的 IPC 屏障', () => {
       invoke(IPC_CHANNELS.listBodyRecords),
       invoke(IPC_CHANNELS.deleteBodyRecord, 1),
       invoke(IPC_CHANNELS.getStorageInfo),
+      invoke(IPC_CHANNELS.getAppSettings),
+      invoke(IPC_CHANNELS.saveAppSettings, { defaultEnergyUnit: 'kcal' }),
       invoke(IPC_CHANNELS.changeStorageDirectory, changeInput),
       await invoke(IPC_CHANNELS.importCsv, 'foods'),
       await invoke(IPC_CHANNELS.chooseStorageDirectory),
@@ -216,6 +253,8 @@ describe('数据目录切换的 IPC 屏障', () => {
     }
     expect(service.listBodyRecords).not.toHaveBeenCalled();
     expect(service.deleteBodyRecord).not.toHaveBeenCalled();
+    expect(service.getAppSettings).not.toHaveBeenCalled();
+    expect(service.saveAppSettings).not.toHaveBeenCalled();
     expect(mocks.importCsv).not.toHaveBeenCalled();
     expect(storage.getInfo).not.toHaveBeenCalled();
     expect(storage.chooseDirectory).not.toHaveBeenCalled();

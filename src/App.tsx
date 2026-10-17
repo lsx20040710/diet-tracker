@@ -1,5 +1,5 @@
 import { AlertCircle, X } from 'lucide-react';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState, type FormEvent } from 'react';
 
 import { AddMealRecordDialog } from './components/MealRecordDialog';
 import { Sidebar } from './components/Sidebar';
@@ -11,6 +11,7 @@ import {
   TextInput,
 } from './components/ui/FormControls';
 import { Modal } from './components/ui/Modal';
+import { ConfirmationDialog } from './components/ui/ConfirmationDialog';
 import { BodyDataPage } from './pages/BodyDataPage';
 import { DietPlansPage } from './pages/DietPlansPage';
 import { FoodsPage } from './pages/FoodsPage';
@@ -19,10 +20,14 @@ import { SettingsPage } from './pages/SettingsPage';
 import { SupplementsPage } from './pages/SupplementsPage';
 import { TodayPage } from './pages/TodayPage';
 import { TransferPage } from './pages/TransferPage';
-import { TrendsPage } from './pages/TrendsPage';
 import { getErrorMessage } from './services/api';
 import { useAppStore } from './stores/app-store';
+import { useSettingsStore } from './stores/settings-store';
 import type { MealType } from './types/models';
+
+const TrendsPage = lazy(() =>
+  import('./pages/TrendsPage').then((module) => ({ default: module.TrendsPage })),
+);
 
 function defaultMealType(): MealType {
   const hour = new Date().getHours();
@@ -119,6 +124,7 @@ function QuickWeightDialog({ open, onClose }: QuickWeightDialogProps) {
 }
 
 export default function App() {
+  const loadSettings = useSettingsStore((state) => state.loadSettings);
   const currentPage = useAppStore((state) => state.currentPage);
   const loadDashboard = useAppStore((state) => state.loadDashboard);
   const selectedDate = useAppStore((state) => state.selectedDate);
@@ -144,6 +150,10 @@ export default function App() {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -216,7 +226,17 @@ export default function App() {
           }}
           quickActionsDisabled={!dashboardReady}
         />
-        <div className="min-h-0 flex-1 overflow-auto">{page}</div>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <Suspense
+            fallback={
+              <p className="p-6 text-sm text-slate-500" role="status">
+                正在加载页面…
+              </p>
+            }
+          >
+            {page}
+          </Suspense>
+        </div>
       </div>
 
       {errorMessage ? (
@@ -243,6 +263,7 @@ export default function App() {
         onClose={() => setAddFoodOpen(false)}
         open={addFoodOpen}
       />
+      <ConfirmationDialog />
     </div>
   );
 }

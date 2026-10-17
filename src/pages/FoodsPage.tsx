@@ -10,6 +10,7 @@ import {
 } from '../components/ui/FormControls';
 import { Modal } from '../components/ui/Modal';
 import { getDietTrackerApi, getErrorMessage, unwrapApiResult } from '../services/api';
+import { confirmAction } from '../stores/confirmation-store';
 import { useAppStore } from '../stores/app-store';
 import { FOOD_CATEGORIES, type Food, type FoodCategory, type FoodInput } from '../types/models';
 import { formatNutrition } from '../utils/nutrition';
@@ -89,7 +90,9 @@ export function FoodsPage() {
   async function handleDelete(food: Food) {
     if (deletePending.current) return;
     deletePending.current = true;
-    if (!window.confirm(`确定从食物库删除“${food.name}”吗？历史饮食记录会保留原有营养快照。`)) {
+    if (
+      !(await confirmAction(`确定从食物库删除“${food.name}”吗？历史饮食记录会保留原有营养快照。`))
+    ) {
       deletePending.current = false;
       return;
     }

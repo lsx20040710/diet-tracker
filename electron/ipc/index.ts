@@ -14,6 +14,7 @@ import { FileOperationService } from '../file-operation-service';
 import { IPC_CHANNELS } from './channels';
 import {
   addCombinationToMealInputSchema,
+  appSettingsSchema,
   bodyRecordInputSchema,
   chartCsvExportInputSchema,
   chartImageExportInputSchema,
@@ -152,6 +153,10 @@ export function registerIpcHandlers(
     );
   }
   register(IPC_CHANNELS.getAppInfo, () => toApiResult(() => database.getAppInfo()));
+  register(IPC_CHANNELS.getAppSettings, () => toApiResult(() => database.getAppSettings()));
+  register(IPC_CHANNELS.saveAppSettings, (input) =>
+    toApiResult(() => database.saveAppSettings(parse(appSettingsSchema, input))),
+  );
   register(IPC_CHANNELS.getDashboard, (date) =>
     toApiResult(() => database.getDashboard(parse(dateSchema, date))),
   );

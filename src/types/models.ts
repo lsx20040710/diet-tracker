@@ -70,6 +70,17 @@ export interface NutritionValues {
 export type NutritionTarget = NutritionValues;
 export type NutritionMetric = keyof NutritionValues;
 
+export const ENERGY_UNITS = ['kcal', 'kJ'] as const;
+export type EnergyUnit = (typeof ENERGY_UNITS)[number];
+
+export interface AppSettings {
+  defaultEnergyUnit: EnergyUnit;
+}
+
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+  defaultEnergyUnit: 'kJ',
+};
+
 /** 同一饮食方案内，早中晚共同使用一组可自定义比例。 */
 export interface MealRatios {
   breakfast: number;
@@ -519,6 +530,8 @@ export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string; c
 
 export interface DietTrackerApi {
   getAppInfo(): Promise<ApiResult<AppInfo>>;
+  getAppSettings(): Promise<ApiResult<AppSettings>>;
+  saveAppSettings(settings: AppSettings): Promise<ApiResult<AppSettings>>;
   getStorageInfo(): Promise<ApiResult<DataStorageInfo>>;
   chooseStorageDirectory(): Promise<ApiResult<DataStorageSelection | null>>;
   changeStorageDirectory(

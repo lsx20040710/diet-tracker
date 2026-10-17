@@ -13,6 +13,7 @@ import {
 } from '../components/ui/FormControls';
 import { Modal } from '../components/ui/Modal';
 import { getDietTrackerApi, getErrorMessage, unwrapApiResult } from '../services/api';
+import { confirmAction } from '../stores/confirmation-store';
 import { useAppStore } from '../stores/app-store';
 import {
   DEFAULT_MEAL_RATIOS,
@@ -521,7 +522,7 @@ export function DietPlansPage() {
       setError('当前方案不能删除，请先启用另一个方案');
       return;
     }
-    if (!window.confirm(`确定删除饮食方案“${plan.name}”吗？`)) return;
+    if (!(await confirmAction(`确定删除饮食方案“${plan.name}”吗？`))) return;
     planMutationRef.current = true;
     setMutatingPlanId(plan.id);
     setError(null);

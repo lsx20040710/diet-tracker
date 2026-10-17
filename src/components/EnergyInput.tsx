@@ -1,12 +1,13 @@
 import { useEffect, useId, useRef, useState } from 'react';
 
+import { useSettingsStore } from '../stores/settings-store';
+import { DEFAULT_APP_SETTINGS } from '../types/models';
 import { convertEnergy, formatEnergyValue, type EnergyUnit } from '../utils/energy';
 
 interface EnergyInputProps {
   valueKcal: string;
   onValueKcalChange: (valueKcal: string) => void;
   label: string;
-  initialUnit?: EnergyUnit;
   disabled?: boolean;
   required?: boolean;
   hint?: string;
@@ -38,16 +39,24 @@ export function EnergyInput({
   valueKcal,
   onValueKcalChange,
   label,
-  initialUnit = 'kcal',
   disabled = false,
   required = false,
   hint,
 }: EnergyInputProps) {
   const inputId = useId();
-  const [unit, setUnit] = useState<EnergyUnit>(initialUnit);
-  const [displayValue, setDisplayValue] = useState(() => getDisplayValue(valueKcal, initialUnit));
+  const defaultEnergyUnit = useSettingsStore(
+    (state) => state.settings?.defaultEnergyUnit ?? DEFAULT_APP_SETTINGS.defaultEnergyUnit,
+  );
+  const [unit, setUnit] = useState<EnergyUnit>(defaultEnergyUnit);
+  const [displayValue, setDisplayValue] = useState(() =>
+    getDisplayValue(valueKcal, defaultEnergyUnit),
+  );
   const canonicalKcalRef = useRef(valueKcal);
   const lastEmittedKcalRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setUnit(defaultEnergyUnit);
+  }, [defaultEnergyUnit]);
 
   useEffect(() => {
     canonicalKcalRef.current = valueKcal;

@@ -6,6 +6,8 @@ import { IPC_CHANNELS } from './ipc/channels';
 /** 只暴露业务方法，不向页面提供任意 IPC、Node.js 或文件系统访问能力。 */
 const dietTrackerApi: DietTrackerApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getAppInfo),
+  getAppSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getAppSettings),
+  saveAppSettings: (settings) => ipcRenderer.invoke(IPC_CHANNELS.saveAppSettings, settings),
   getStorageInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getStorageInfo),
   chooseStorageDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.chooseStorageDirectory),
   changeStorageDirectory: (input) => ipcRenderer.invoke(IPC_CHANNELS.changeStorageDirectory, input),
